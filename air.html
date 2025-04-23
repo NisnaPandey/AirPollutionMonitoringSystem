@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Air Quality Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 2rem;
+      color: #333;
+      background: #f4f4f4;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    body.dark-mode {
+      background: #121212;
+      color: #f4f4f4;
+    }
+
+    h1 {
+      text-align: center;
+      color: #1e88e5;
+    }
+
+    .card {
+      background: white;
+      max-width: 400px;
+      margin: 1rem auto;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      transition: background 0.3s;
+    }
+
+    .card.dark-mode {
+      background: #333;
+      color: #f4f4f4;
+    }
+
+    .card h2 {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .value {
+      font-size: 2rem;
+      color: #388e3c;
+    }
+
+    .value.high {
+      color: red;
+    }
+
+    .condition {
+      font-size: 1.2rem;
+      color: #ff5722;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .pollution-alert {
+      color: red;
+      font-size: 1.5rem;
+      margin-top: 20px;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .toggle-btn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background-color: #1e88e5;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+    }
+
+    .toggle-btn.dark-mode {
+      background-color: #ff5722;
+    }
+
+    .nepali-message {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 1.2rem;
+      color: #f44336;
+      font-weight: bold;
+      display: none;
+    }
+
+    body.dark-mode .nepali-message {
+      color: #ff5722;
+    }
+  </style>
+</head>
+<body>
+
+  <button class="toggle-btn" id="toggleBtn">Switch to Dark Mode</button>
+  
+  <h1>Air Quality Monitoring</h1>
+
+  <div class="card">
+    <h2>Temperature</h2>
+    <div id="temperature" class="value">--</div>
+    <div id="temperatureCondition" class="condition">--</div>
+  </div>
+
+  <div class="card">
+    <h2>Humidity</h2>
+    <div id="humidity" class="value">--</div>
+    <div id="humidityCondition" class="condition">--</div>
+  </div>
+
+  <div class="card">
+    <h2>MQ9</h2>
+    <div id="mq9" class="value">--</div>
+    <div id="mq9Condition" class="condition">--</div>
+  </div>
+
+  <div class="card">
+    <h2>MQ135</h2>
+    <div id="mq135" class="value">--</div>
+    <div id="mq135Condition" class="condition">--</div>
+  </div>
+
+  <div class="card">
+    <h2>MQ2</h2>
+    <div id="mq2" class="value">--</div>
+    <div id="mq2Condition" class="condition">--</div>
+  </div>
+
+  <div class="card">
+    <h2>Dust</h2>
+    <div id="dust" class="value">--</div>
+  </div>
+
+  <div id="pollutionAlert" class="pollution-alert" style="display:none;">
+    Air is Polluted!
+  </div>
+
+  <div id="kripayaMessage" class="nepali-message">
+    कृपया बाहिर जानुहोस्।
+  </div>
+
+  <script type="module">
+    // Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBf8urETr5G32S8eJRg77nQ3Ev25kLr-I8",
+      authDomain: "airpollutionmonitoringsy-f1fc9.firebaseapp.com",
+      databaseURL: "https://airpollutionmonitoringsy-f1fc9-default-rtdb.firebaseio.com",
+      projectId: "airpollutionmonitoringsy-f1fc9",
+      storageBucket: "airpollutionmonitoringsy-f1fc9.firebaseapp.com",
+      messagingSenderId: "589098785015",
+      appId: "1:589098785015:web:55c83c959eee2cde551bf2",
+      measurementId: "G-GWH6ZEY5Z1"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // Pollution Thresholds
+    const MQ9_THRESHOLD = 800;
+    const MQ135_THRESHOLD = 1000;
+    const MQ2_THRESHOLD = 400;
+
+    // Condition functions
+    function getHumidityCondition(humidity) {
+      if (humidity < 30) return "Too Dry";
+      if (humidity >= 30 && humidity <= 50) return "Comfortable";
+      if (humidity > 50 && humidity <= 70) return "Humid/Slightly Humid";
+      return "Too Humid/Risk of Mold";
+    }
+
+    function getTemperatureCondition(temperature) {
+      if (temperature < 10) return "Cold/Chilly";
+      if (temperature >= 10 && temperature <= 24) return "Comfortable";
+      if (temperature >= 25 && temperature <= 30) return "Warm";
+      if (temperature >= 31 && temperature <= 35) return "Hot";
+      return "Too Hot";
+    }
+
+    function getMQ135Condition(mq135) {
+      if (mq135 <= 300) return "Clean";
+      if (mq135 > 300 && mq135 <= 700) return "Light Pollution";
+      if (mq135 > 700 && mq135 <= 1100) return "Moderate";
+      if (mq135 > 1100 && mq135 <= 2000) return "Bad/Alert Zone";
+      return "Toxic/Critical";
+    }
+
+    function getMQ2Condition(mq2) {
+      if (mq2 <= 300) return "Fresh";
+      if (mq2 > 300 && mq2 <= 800) return "Light Smoke";
+      if (mq2 > 800 && mq2 <= 1500) return "Moderate Pollution";
+      if (mq2 > 1500 && mq2 <= 2500) return "Dangerous";
+      return "Critical/Dangerous";
+    }
+
+    // Listen for Air Quality updates
+    const airRef = ref(db, 'AirQuality');
+    onValue(airRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Update values on page
+        const temperature = data.temperature;
+        const humidity = data.humidity;
+        const mq9 = data.MQ9;
+        const mq135 = data.MQ135;
+        const mq2 = data.MQ2;
+
+        // Highlight high values in red
+        document.getElementById('temperature').textContent = temperature;
+        document.getElementById('temperature').classList.toggle('high', temperature > 35);
+
+        document.getElementById('humidity').textContent = humidity;
+        document.getElementById('humidity').classList.toggle('high', humidity < 30 || humidity > 70);
+
+        document.getElementById('mq9').textContent = mq9;
+        document.getElementById('mq9').classList.toggle('high', mq9 > MQ9_THRESHOLD);
+
+        document.getElementById('mq135').textContent = mq135;
+        document.getElementById('mq135').classList.toggle('high', mq135 > MQ135_THRESHOLD);
+
+        document.getElementById('mq2').textContent = mq2;
+        document.getElementById('mq2').classList.toggle('high', mq2 > MQ2_THRESHOLD);
+
+        document.getElementById('dust').textContent = data.Dust;
+
+        // Set condition labels
+        document.getElementById('temperatureCondition').textContent = getTemperatureCondition(temperature);
+        document.getElementById('humidityCondition').textContent = getHumidityCondition(humidity);
+        document.getElementById('mq9Condition').textContent = getMQ135Condition(mq9);
+        document.getElementById('mq135Condition').textContent = getMQ135Condition(mq135);
+        document.getElementById('mq2Condition').textContent = getMQ2Condition(mq2);
+
+        // Pollution Alert based on thresholds
+        const isPolluted = mq9 > MQ9_THRESHOLD || mq135 > MQ135_THRESHOLD || mq2 > MQ2_THRESHOLD;
+        const pollutionAlert = document.getElementById('pollutionAlert');
+        if (isPolluted) {
+          pollutionAlert.style.display = 'block';
+        } else {
+          pollutionAlert.style.display = 'none';
+        }
+
+        // Show Nepali message (Kripaya Bahira Nanisknu)
+        const nepaliMessage = document.getElementById('kripayaMessage');
+        nepaliMessage.style.display = (temperature > 35 || humidity < 30) ? 'block' : 'none';
+      }
+    });
+
+    // Toggle Dark Mode
+    const toggleBtn = document.getElementById('toggleBtn');
+    toggleBtn.addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      document.querySelectorAll('.card').forEach(card => card.classList.toggle('dark-mode'));
+      toggleBtn.classList.toggle('dark-mode');
+      toggleBtn.textContent = document.body.classList.contains('dark-mode') ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+    });
+  </script>
+</body>
+</html>
